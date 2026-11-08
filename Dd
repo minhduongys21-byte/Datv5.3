@@ -1,0 +1,908 @@
+--==================================================
+-- DAT CHUA V5.2 | ROBLOX STUDIO (HOÀN CHỈNH: SAU LƯNG ĐỊCH + CHỐNG RUNG)
+-- LocalScript: StarterPlayer > StarterPlayerScripts
+--==================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+--==================================================
+-- CẤU HÌNH HỆ THỐNG
+--==================================================
+local Config = {
+    -- Chức năng Combat
+    AimAssist = false,
+    TeleportToTarget = false,
+    AutoShoot = false,      -- Chỉ xả đạn khi Aim dính mục tiêu
+    NoRecoil = false,
+    TeamCheck = true,
+    WallCheck = true,
+    TargetPart = "Head",
+    AimStrength = 50,
+    MaxDistance = 2000,
+
+    -- Chức năng Súng & Đạn
+    InfiniteAmmo = false,
+    RapidFire = false,
+    FireRateValue = 10,
+
+    -- Cấu hình Visual
+    EnableFOV = true,
+    FOV = 120,
+
+    -- Nhân vật
+    Speed = false,
+    SpeedValue = 50,
+    Fly = false,
+    FlyValue = 50,
+    Invisibility = false,
+
+    -- Hitbox
+    ExpandHitbox = false,
+    HitboxSize = 10,
+    HitboxTransparency = 0.5,
+
+    -- ESP
+    ESP = false,
+    ESPName = false,
+    ESPHealth = false
+}
+
+local bv, bg = nil, nil
+local holdPosition = nil
+local isMouseDown = false
+local lastShotTime = 0
+local lastAutoShootTime = 0
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isMouseDown = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isMouseDown = false
+    end
+end)
+
+--==================================================
+-- KHỞI TẠO GUI CHÍNH
+--==================================================
+local oldGui = playerGui:FindFirstChild("DAT_CHUA_HUB")
+if oldGui then oldGui:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "DAT_CHUA_HUB"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 100
+gui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.fromOffset(560, 340)
+mainFrame.Position = UDim2.new(0.5, -280, 0.5, -170)
+mainFrame.BackgroundColor3 = Color3.fromRGB(24, 25, 29)
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = gui
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(45, 48, 56)
+mainStroke.Thickness = 1
+mainStroke.Parent = mainFrame
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 35)
+header.BackgroundTransparency = 1
+header.Parent = mainFrame
+
+local hubTitle = Instance.new("TextLabel")
+hubTitle.Size = UDim2.new(1, -50, 1, 0)
+hubTitle.Position = UDim2.fromOffset(15, 0)
+hubTitle.BackgroundTransparency = 1
+hubTitle.Text = "ĐẠT CHÚA V5.2 - BẢNG ĐIỀU KHIỂN"
+hubTitle.TextColor3 = Color3.fromRGB(235, 235, 240)
+hubTitle.TextSize = 15
+hubTitle.Font = Enum.Font.GothamBold
+hubTitle.TextXAlignment = Enum.TextXAlignment.Left
+hubTitle.Parent = header
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.fromOffset(28, 28)
+closeBtn.Position = UDim2.new(1, -32, 0, 4)
+closeBtn.Text = "×"
+closeBtn.TextColor3 = Color3.fromRGB(180, 185, 195)
+closeBtn.TextSize = 20
+closeBtn.BackgroundTransparency = 1
+closeBtn.Font = Enum.Font.GothamMedium
+closeBtn.Parent = header
+
+local reopenBtn = Instance.new("TextButton")
+reopenBtn.Size = UDim2.fromOffset(50, 50)
+reopenBtn.Position = UDim2.new(0, 10, 0.4, 0)
+reopenBtn.Text = "MENU"
+reopenBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+reopenBtn.TextSize = 13
+reopenBtn.Font = Enum.Font.GothamBold
+reopenBtn.BackgroundColor3 = Color3.fromRGB(24, 25, 29)
+reopenBtn.Visible = false
+reopenBtn.Parent = gui
+Instance.new("UICorner", reopenBtn).CornerRadius = UDim.new(0, 25)
+
+local draggingReopen = false
+local dragStartPos, startButtonPos
+local hasMoved = false
+
+reopenBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingReopen = true
+        hasMoved = false
+        dragStartPos = input.Position
+        startButtonPos = reopenBtn.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then draggingReopen = false end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingReopen and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStartPos
+        if delta.Magnitude > 6 then hasMoved = true end
+        reopenBtn.Position = UDim2.new(startButtonPos.X.Scale, startButtonPos.X.Offset + delta.X, startButtonPos.Y.Scale, startButtonPos.Y.Offset + delta.Y)
+    end
+end)
+
+closeBtn.Activated:Connect(function()
+    mainFrame.Visible = false
+    reopenBtn.Visible = true
+end)
+
+reopenBtn.Activated:Connect(function()
+    if not hasMoved then
+        mainFrame.Visible = true
+        reopenBtn.Visible = false
+    end
+end)
+
+--==================================================
+-- TAB SYSTEM
+--==================================================
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 150, 1, -40)
+sidebar.Position = UDim2.fromOffset(10, 35)
+sidebar.BackgroundTransparency = 1
+sidebar.Parent = mainFrame
+
+Instance.new("UIListLayout", sidebar).Padding = UDim.new(0, 5)
+
+local container = Instance.new("Frame")
+container.Size = UDim2.new(1, -175, 1, -45)
+container.Position = UDim2.fromOffset(165, 38)
+container.BackgroundTransparency = 1
+container.Parent = mainFrame
+
+local tabPages = {}
+
+local function selectTab(name)
+    for tabName, tab in pairs(tabPages) do
+        if tabName == name then
+            tab.page.Visible = true
+            tab.btn.BackgroundColor3 = Color3.fromRGB(40, 43, 52)
+            tab.btn.BackgroundTransparency = 0
+            tab.btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            tab.indicator.Visible = true
+        else
+            tab.page.Visible = false
+            tab.btn.BackgroundColor3 = Color3.fromRGB(32, 34, 40)
+            tab.btn.BackgroundTransparency = 0.5
+            tab.btn.TextColor3 = Color3.fromRGB(160, 165, 175)
+            tab.indicator.Visible = false
+        end
+    end
+end
+
+local function createTab(name, icon)
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Size = UDim2.new(1, 0, 0, 36)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(32, 34, 40)
+    tabBtn.BackgroundTransparency = 0.5
+    tabBtn.Text = "   " .. (icon or "•") .. "  " .. name
+    tabBtn.TextColor3 = Color3.fromRGB(160, 165, 175)
+    tabBtn.TextSize = 13
+    tabBtn.Font = Enum.Font.GothamMedium
+    tabBtn.TextXAlignment = Enum.TextXAlignment.Left
+    tabBtn.Parent = sidebar
+    Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
+
+    local activeIndicator = Instance.new("Frame")
+    activeIndicator.Size = UDim2.new(0, 3, 0, 18)
+    activeIndicator.Position = UDim2.new(0, 2, 0.5, -9)
+    activeIndicator.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    activeIndicator.Visible = false
+    activeIndicator.Parent = tabBtn
+    Instance.new("UICorner", activeIndicator).CornerRadius = UDim.new(0, 2)
+
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Color3.fromRGB(60, 65, 75)
+    page.CanvasSize = UDim2.new()
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+    page.Parent = container
+
+    Instance.new("UIListLayout", page).Padding = UDim.new(0, 8)
+
+    tabPages[name] = {btn = tabBtn, page = page, indicator = activeIndicator}
+    tabBtn.Activated:Connect(function() selectTab(name) end)
+    return page
+end
+
+local mainTab   = createTab("Tự Động Aim", "◎")
+local gunTab    = createTab("Súng & Đạn", "🔫")
+local visualTab = createTab("Vòng Ngắm", "👁")
+local playerTab = createTab("Nhân Vật", "👤")
+local hitboxTab = createTab("Tăng Hitbox", "🔲")
+local espTab    = createTab("Xuyên Tường", "⛶")
+
+selectTab("Tự Động Aim")
+
+--==================================================
+-- UI ELEMENTS BUILDER
+--==================================================
+local function addToggle(page, text, configKey, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -5, 0, 42)
+    frame.BackgroundColor3 = Color3.fromRGB(32, 34, 42)
+    frame.Parent = page
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -60, 1, 0)
+    label.Position = UDim2.fromOffset(12, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(220, 220, 225)
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.fromOffset(38, 20)
+    toggleBtn.Position = UDim2.new(1, -48, 0.5, -10)
+    toggleBtn.BackgroundColor3 = Config[configKey] and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(50, 53, 62)
+    toggleBtn.Text = ""
+    toggleBtn.Parent = frame
+    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
+
+    local circle = Instance.new("Frame")
+    circle.Size = UDim2.fromOffset(16, 16)
+    circle.Position = Config[configKey] and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    circle.Parent = toggleBtn
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+    toggleBtn.Activated:Connect(function()
+        Config[configKey] = not Config[configKey]
+        local active = Config[configKey]
+        toggleBtn.BackgroundColor3 = active and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(50, 53, 62)
+        circle:TweenPosition(active and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8), "Out", "Quad", 0.15, true)
+        if callback then callback(active) end
+    end)
+end
+
+local function addSlider(page, text, configKey, minVal, maxVal, unitText, callback)
+    local unit = unitText or " Studs"
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -5, 0, 50)
+    frame.BackgroundColor3 = Color3.fromRGB(32, 34, 42)
+    frame.Parent = page
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.65, 0, 0, 22)
+    label.Position = UDim2.fromOffset(12, 4)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(220, 220, 225)
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+
+    local valLabel = Instance.new("TextLabel")
+    valLabel.Size = UDim2.new(0.35, -12, 0, 22)
+    valLabel.Position = UDim2.new(0.65, 0, 0, 4)
+    valLabel.BackgroundTransparency = 1
+    valLabel.Text = tostring(Config[configKey]) .. unit
+    valLabel.TextColor3 = Color3.fromRGB(0, 170, 255)
+    valLabel.TextSize = 13
+    valLabel.Font = Enum.Font.GothamBold
+    valLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valLabel.Parent = frame
+
+    local bar = Instance.new("TextButton")
+    bar.Size = UDim2.new(1, -24, 0, 6)
+    bar.Position = UDim2.fromOffset(12, 34)
+    bar.BackgroundColor3 = Color3.fromRGB(50, 53, 65)
+    bar.Text = ""
+    bar.AutoButtonColor = false
+    bar.Parent = frame
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame")
+    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    fill.Size = UDim2.fromScale((Config[configKey] - minVal) / (maxVal - minVal), 1)
+    fill.Parent = bar
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.fromOffset(12, 12)
+    knob.Position = UDim2.new(1, -6, 0.5, -6)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.Parent = fill
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local dragging = false
+    local function update(inputX)
+        local ratio = math.clamp((inputX - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+        local value = math.floor(minVal + ratio * (maxVal - minVal) + 0.5)
+        Config[configKey] = value
+        fill.Size = UDim2.fromScale(ratio, 1)
+        valLabel.Text = tostring(value) .. unit
+        if callback then callback(value) end
+    end
+
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            update(input.Position.X)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input.Position.X)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+--==================================================
+-- PHÂN MỤC TÍNH NĂNG
+--==================================================
+addToggle(mainTab, "Bật Aim Assist (Tự Aim)", "AimAssist")
+addToggle(mainTab, "Teleport Ra Sau Lưng Kẻ Địch", "TeleportToTarget")
+addToggle(mainTab, "Tự Động Bắn (Aim dính mới bắn)", "AutoShoot")
+addToggle(mainTab, "Bỏ qua đồng đội", "TeamCheck")
+addToggle(mainTab, "Kiểm tra vật cản (Wall Check)", "WallCheck")
+addSlider(mainTab, "Độ bám Aim (Mượt mà)", "AimStrength", 1, 100, " %")
+addSlider(mainTab, "Khoảng Cách Aim Tối Đa", "MaxDistance", 100, 10000, " Studs")
+
+-- Tab Súng & Đạn
+addToggle(gunTab, "Bắn Không Nạp Đạn (Vô Hạn Đạn)", "InfiniteAmmo")
+addToggle(gunTab, "Bật Tốc Độ Bắn Nhanh (Rapid Fire)", "RapidFire")
+addSlider(gunTab, "Tốc Độ Xả Đạn", "FireRateValue", 1, 30, "x")
+addToggle(gunTab, "Bắn Không Giật Súng (No Recoil)", "NoRecoil")
+
+-- Tab Visual
+addToggle(visualTab, "Hiện vòng FOV", "EnableFOV")
+addSlider(visualTab, "Bán kính vòng FOV", "FOV", 30, 300, " px")
+
+-- Tab Player
+addToggle(playerTab, "Bật Chạy Nhanh", "Speed")
+addSlider(playerTab, "Tốc Độ Chạy", "SpeedValue", 16, 500, " Spd")
+addToggle(playerTab, "Bật Bay (Bay Theo Camera)", "Fly", function(state)
+    if state then startFly() else stopFly() end
+end)
+addSlider(playerTab, "Tốc Độ Bay", "FlyValue", 10, 300, " Spd")
+addToggle(playerTab, "Tàng Hình (Người khác không thấy)", "Invisibility", function(state)
+    local char = player.Character
+    if not char then return end
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+            v.Transparency = state and 1 or 0
+        elseif v:IsA("Decal") then
+            v.Transparency = state and 1 or 0
+        elseif v:IsA("Accessory") then
+            local handle = v:FindFirstChild("Handle")
+            if handle then handle.Transparency = state and 1 or 0 end
+        end
+    end
+end)
+
+-- Tab Hitbox
+addToggle(hitboxTab, "Mở Rộng Hitbox Kẻ Địch", "ExpandHitbox")
+addSlider(hitboxTab, "Kích Thước Hitbox", "HitboxSize", 2, 30, " Size")
+
+-- Tab ESP
+addToggle(espTab, "Bật ESP (Khung Viền Xuyên Tường)", "ESP")
+addToggle(espTab, "Hiện Tên Người Chơi", "ESPName")
+addToggle(espTab, "Hiện Số Máu (HP)", "ESPHealth")
+
+--==================================================
+-- HỆ THỐNG XỬ LÝ CHÍNH
+--==================================================
+
+function stopFly()
+    if bv then bv:Destroy(); bv = nil end
+    if bg then bg:Destroy(); bg = nil end
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false end
+    holdPosition = nil
+end
+
+function startFly()
+    stopFly()
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    
+    if root and hum then
+        hum.PlatformStand = true
+        bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.Velocity = Vector3.zero
+        bv.Parent = root
+
+        bg = Instance.new("BodyGyro")
+        bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bg.P = 9000
+        bg.CFrame = root.CFrame
+        bg.Parent = root
+        holdPosition = root.Position
+    end
+end
+
+-- Vòng ngắm FOV
+local fovCircle = nil
+pcall(function()
+    fovCircle = Drawing.new("Circle")
+    fovCircle.Visible = false
+    fovCircle.Thickness = 1.5
+    fovCircle.NumSides = 60
+    fovCircle.Filled = false
+    fovCircle.Transparency = 0.8
+    fovCircle.Color = Color3.fromRGB(0, 170, 255)
+end)
+
+local function isTeammate(targetPlayer)
+    if not Config.TeamCheck then return false end
+    return player.Team and targetPlayer.Team and player.Team == targetPlayer.Team
+end
+
+local function getAimTarget()
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local cam = workspace.CurrentCamera
+    if not root or not cam then return nil end
+
+    local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+    local bestTargetHead = nil
+    local bestDist = Config.FOV
+
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer ~= player and not isTeammate(targetPlayer) then
+            local tChar = targetPlayer.Character
+            local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+            local tHead = tChar and tChar:FindFirstChild(Config.TargetPart)
+            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+
+            if tHum and tHum.Health > 0 and tHead and tRoot then
+                local worldDist = (root.Position - tRoot.Position).Magnitude
+                if worldDist <= Config.MaxDistance then
+                    local screenPos, visible = cam:WorldToViewportPoint(tHead.Position)
+                    if visible and screenPos.Z > 0 then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if dist < bestDist then
+                            if Config.WallCheck then
+                                local params = RaycastParams.new()
+                                params.FilterType = Enum.RaycastFilterType.Exclude
+                                params.FilterDescendantsInstances = {char}
+                                local ray = workspace:Raycast(cam.CFrame.Position, tHead.Position - cam.CFrame.Position, params)
+                                if ray and ray.Instance:IsDescendantOf(tChar) then
+                                    bestDist = dist
+                                    bestTargetHead = tHead
+                                end
+                            else
+                                bestDist = dist
+                                bestTargetHead = tHead
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if fovCircle then
+        fovCircle.Visible = Config.EnableFOV and Config.AimAssist
+        fovCircle.Radius = Config.FOV
+        fovCircle.Position = center
+    end
+
+    return bestTargetHead
+end
+
+local function getClosestEnemyRoot()
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local closestRoot = nil
+    local shortestDistance = Config.MaxDistance
+
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer ~= player and not isTeammate(targetPlayer) then
+            local tChar = targetPlayer.Character
+            local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+
+            if tHum and tHum.Health > 0 and tRoot then
+                local dist = (root.Position - tRoot.Position).Magnitude
+                if dist < shortestDistance then
+                    shortestDistance = dist
+                    closestRoot = tRoot
+                end
+            end
+        end
+    end
+
+    return closestRoot
+end
+
+-- ==================================================
+-- HỆ THỐNG XỬ LÝ SÚNG
+-- ==================================================
+local function handleGunAndAmmo()
+    local char = player.Character
+    if not char then return end
+
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+
+    -- 1. BẮN KHÔNG NẠP ĐẠN
+    if Config.InfiniteAmmo then
+        for _, obj in ipairs(tool:GetDescendants()) do
+            if obj:IsA("ValueBase") then
+                local name = obj.Name:lower()
+                if name:find("ammo") or name:find("clip") or name:find("bullet") or name:find("mag") then
+                    if obj:IsA("IntValue") or obj:IsA("NumberValue") then
+                        obj.Value = 999
+                    end
+                end
+            end
+        end
+        for attrName, _ in pairs(tool:GetAttributes()) do
+            local lowerAttr = attrName:lower()
+            if lowerAttr:find("reload") then
+                pcall(function() tool:SetAttribute(attrName, false) end)
+            elseif lowerAttr:find("ammo") or lowerAttr:find("clip") then
+                pcall(function() tool:SetAttribute(attrName, 999) end)
+            end
+        end
+    end
+
+    -- 2. TỐC ĐỘ BẮN NHANH
+    if Config.RapidFire then
+        for _, obj in ipairs(tool:GetDescendants()) do
+            if obj:IsA("ValueBase") then
+                local name = obj.Name:lower()
+                if name:find("cooldown") or name:find("firedelay") or name:find("firerate") or name:find("delay") then
+                    if obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                        obj.Value = 0.01 / Config.FireRateValue
+                    end
+                end
+            elseif obj:IsA("ModuleScript") then
+                pcall(function()
+                    local configModule = require(obj)
+                    if type(configModule) == "table" then
+                        for k, v in pairs(configModule) do
+                            local keyName = tostring(k):lower()
+                            if keyName:find("firerate") or keyName:find("cooldown") or keyName:find("shootdelay") then
+                                configModule[k] = 0.01 / Config.FireRateValue
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+
+        if isMouseDown then
+            local currentTime = tick()
+            local interval = math.clamp(0.1 / Config.FireRateValue, 0.01, 0.2)
+            if currentTime - lastShotTime >= interval then
+                lastShotTime = currentTime
+                pcall(function() tool:Activate() end)
+            end
+        end
+    end
+
+    -- 3. BẮN KHÔNG GIẬT SÚNG
+    if Config.NoRecoil then
+        for _, obj in ipairs(tool:GetDescendants()) do
+            if obj:IsA("ValueBase") then
+                local name = obj.Name:lower()
+                if name:find("recoil") or name:find("spread") or name:find("kick") or name:find("shake") or name:find("bloom") then
+                    if obj:IsA("Vector3Value") then obj.Value = Vector3.zero
+                    elseif obj:IsA("CFrameValue") then obj.Value = CFrame.new()
+                    else obj.Value = 0 end
+                end
+            elseif obj:IsA("ModuleScript") then
+                pcall(function()
+                    local configModule = require(obj)
+                    if type(configModule) == "table" then
+                        for k, v in pairs(configModule) do
+                            local keyName = tostring(k):lower()
+                            if keyName:find("recoil") or keyName:find("spread") or keyName:find("kick") or keyName:find("shake") or keyName:find("bloom") or keyName:find("camrecoil") then
+                                if type(v) == "number" then
+                                    configModule[k] = 0
+                                elseif typeof(v) == "Vector3" then
+                                    configModule[k] = Vector3.zero
+                                elseif typeof(v) == "CFrame" then
+                                    configModule[k] = CFrame.new()
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+
+        for attrName, _ in pairs(tool:GetAttributes()) do
+            local lowerAttr = attrName:lower()
+            if lowerAttr:find("recoil") or lowerAttr:find("spread") or lowerAttr:find("kick") or lowerAttr:find("shake") then
+                pcall(function() tool:SetAttribute(attrName, 0) end)
+            end
+        end
+    end
+end
+
+-- Vòng lặp Render chính
+RunService.RenderStepped:Connect(function(deltaTime)
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local cam = workspace.CurrentCamera
+
+    -- 1. Tốc độ chạy
+    if hum and not Config.Fly then
+        hum.WalkSpeed = Config.Speed and Config.SpeedValue or 16
+    end
+
+    -- 2. Tàng hình
+    if char and Config.Invisibility then
+        for _, v in ipairs(char:GetDescendants()) do
+            if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                v.Transparency = 1
+            elseif v:IsA("Decal") then
+                v.Transparency = 1
+            elseif v:IsA("Accessory") then
+                local handle = v:FindFirstChild("Handle")
+                if handle then handle.Transparency = 1 end
+            end
+        end
+    end
+
+    -- 3. Fly theo Camera
+    if Config.Fly and root and hum and cam then
+        if not bv or not bv.Parent then startFly() end
+        hum.PlatformStand = true
+        bg.CFrame = cam.CFrame
+
+        local speed = Config.FlyValue or 50
+        local moveDir = hum.MoveDirection
+
+        if moveDir.Magnitude > 0 then
+            local rawMove = (cam.CFrame.LookVector * (-cam.CFrame:VectorToObjectSpace(moveDir).Z)) + (cam.CFrame.RightVector * (cam.CFrame:VectorToObjectSpace(moveDir).X))
+            bv.Velocity = rawMove * speed
+            holdPosition = root.Position
+        else
+            bv.Velocity = Vector3.zero
+            if holdPosition then
+                root.CFrame = CFrame.new(holdPosition, holdPosition + cam.CFrame.LookVector)
+            end
+        end
+    else
+        if bv then stopFly() end
+    end
+
+    -- 4. Xử lý Súng & Đạn
+    handleGunAndAmmo()
+
+    -- 5. Teleport RA SAU LƯNG Kẻ Địch (Đứng thẳng hoàn toàn & Không rung)
+    if Config.TeleportToTarget and char and root then
+        local enemyRoot, enemyHead = nil, nil
+        local shortestDist = Config.MaxDistance
+        
+        for _, targetPlayer in ipairs(Players:GetPlayers()) do
+            if targetPlayer ~= player and not isTeammate(targetPlayer) then
+                local tChar = targetPlayer.Character
+                local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+                local tHead = tChar and tChar:FindFirstChild("Head")
+                if tHum and tHum.Health > 0 and tRoot and tHead then
+                    local dist = (root.Position - tRoot.Position).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        enemyRoot = tRoot
+                        enemyHead = tHead
+                    end
+                end
+            end
+        end
+
+        if enemyRoot and enemyHead then
+            root.CanCollide = false
+
+            -- Đứng ngay SAU LƯNG địch (cách 3 studs về phía sau lưng) và nhìn thẳng về phía đầu địch
+            local behindCF = enemyRoot.CFrame * CFrame.new(0, 0, 3)
+            local targetCF = CFrame.lookAt(behindCF.Position, Vector3.new(enemyHead.Position.X, behindCF.Position.Y, enemyHead.Position.Z), Vector3.yAxis)
+            
+            root.CFrame = targetCF
+            
+            pcall(function()
+                root.AssemblyLinearVelocity = Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+            end)
+            
+            -- Khóa camera nhìn thẳng vào đầu địch mượt mà bằng Lerp
+            if cam then
+                local targetCamCF = CFrame.new(cam.CFrame.Position, enemyHead.Position)
+                cam.CFrame = cam.CFrame:Lerp(targetCamCF, 0.4)
+            end
+        end
+    else
+        if root then
+            root.CanCollide = true
+        end
+    end
+
+    -- 6. Aim Assist & Tự Động Bắn
+    local currentTargetHead = nil
+    if cam and Config.AimAssist then
+        currentTargetHead = getAimTarget()
+        if currentTargetHead then
+            local desiredCFrame = CFrame.lookAt(cam.CFrame.Position, currentTargetHead.Position)
+            local factor = math.clamp((Config.AimStrength / 100) * (deltaTime * 30), 0.01, 1)
+            cam.CFrame = cam.CFrame:Lerp(desiredCFrame, factor)
+        end
+    elseif fovCircle and not Config.AimAssist then
+        fovCircle.Visible = false
+    end
+
+    -- TỰ ĐỘNG BẮN: CHỈ KHI AIM DÍNH VÀO MỤC TIÊU
+    if Config.AutoShoot and char then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            if Config.AimAssist and currentTargetHead then
+                local now = tick()
+                if now - lastAutoShootTime >= 0.08 then
+                    lastAutoShootTime = now
+                    pcall(function() tool:Activate() end)
+                    pcall(function()
+                        VirtualUser:Button1Down(Vector2.zero)
+                        task.delay(0.03, function() VirtualUser:Button1Up(Vector2.zero) end)
+                    end)
+                end
+            end
+        end
+    end
+
+    -- 7. Hitbox Expander
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer ~= player then
+            local tChar = targetPlayer.Character
+            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+            local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+            local tHead = tChar and tChar:FindFirstChild("Head")
+
+            if tRoot then
+                if Config.ExpandHitbox and not isTeammate(targetPlayer) then
+                    tRoot.Size = Vector3.new(Config.HitboxSize, Config.HitboxSize, Config.HitboxSize)
+                    tRoot.Transparency = Config.HitboxTransparency
+                    tRoot.Color = Color3.fromRGB(255, 0, 0)
+                    tRoot.Material = Enum.Material.SmoothPlastic
+                    tRoot.CanCollide = false
+                    tRoot.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
+                else
+                    tRoot.Size = Vector3.new(2, 2, 1)
+                    tRoot.Transparency = 1
+                end
+            end
+
+            -- Highlight ESP
+            if tChar then
+                local highlight = tChar:FindFirstChild("HUB_ESP")
+                if Config.ESP then
+                    if not highlight then
+                        highlight = Instance.new("Highlight")
+                        highlight.Name = "HUB_ESP"
+                        highlight.Adornee = tChar
+                        highlight.FillTransparency = 0.7
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        highlight.Parent = tChar
+                    end
+                    highlight.Enabled = true
+                    highlight.OutlineColor = isTeammate(targetPlayer) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                elseif highlight then
+                    highlight.Enabled = false
+                end
+            end
+
+            -- Tag Tên & Máu
+            if tHead and tHum then
+                local billboard = tHead:FindFirstChild("HUB_ESP_Tag")
+                if Config.ESPName or Config.ESPHealth then
+                    if not billboard then
+                        billboard = Instance.new("BillboardGui")
+                        billboard.Name = "HUB_ESP_Tag"
+                        billboard.Adornee = tHead
+                        billboard.Size = UDim2.new(0, 200, 0, 50)
+                        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                        billboard.AlwaysOnTop = true
+
+                        local label = Instance.new("TextLabel")
+                        label.Name = "Text"
+                        label.Size = UDim2.new(1, 0, 1, 0)
+                        label.BackgroundTransparency = 1
+                        label.TextSize = 13
+                        label.Font = Enum.Font.GothamBold
+                        label.TextStrokeTransparency = 0.2
+                        label.Parent = billboard
+                        billboard.Parent = tHead
+                    end
+
+                    local label = billboard:FindFirstChild("Text")
+                    if label then
+                        local textDisplay = ""
+                        if Config.ESPName then textDisplay = targetPlayer.Name end
+                        if Config.ESPHealth then
+                            local hp = math.floor(tHum.Health)
+                            local maxHp = math.floor(tHum.MaxHealth)
+                            if textDisplay ~= "" then
+                                textDisplay = textDisplay .. " | HP: " .. tostring(hp) .. "/" .. tostring(maxHp)
+                            else
+                                textDisplay = "HP: " .. tostring(hp) .. "/" .. tostring(maxHp)
+                            end
+                        end
+                        label.Text = textDisplay
+                        label.TextColor3 = isTeammate(targetPlayer) and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(255, 60, 60)
+                    end
+                    billboard.Enabled = true
+                elseif billboard then
+                    billboard.Enabled = false
+                end
+            end
+        end
+    end
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+    stopFly()
+    task.wait(0.5)
+    local hum = newChar:WaitForChild("Humanoid", 3)
+    if hum then hum.WalkSpeed = 16 end
+end)
+
+print("ĐẠT CHÚA V5.2 - Đã cập nhật teleport ra sau lưng địch thành công!")
